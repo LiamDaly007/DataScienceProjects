@@ -1,0 +1,801 @@
+---
+title: "Linear Regression Analysis on Hostel Prices in Japan" 
+author: "Liam Daly"
+date: '2024-06-07'
+output: pdf_document
+---
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+library("tidyverse")
+library("ggplot2") 
+library("gridExtra")
+library("GGally")
+library("car")
+```
+
+\newpage 
+\tableofcontents 
+\newpage
+\listoffigures
+\newpage
+
+# Introduction
+
+## Subject Matter
+
+I'm interested in examining whether regression analysis can effectively be applied to determine which factors may influence higher hostel prices in Japan. 
+
+## Research Question
+
+Which predictors are positively linearly related with minimum nightly hostel prices in Japan?
+
+## Analysis Goal and Motivation
+
+My main goal is to create a linear regression model which may be used to make inferences on statistically significant predictors with prices as the response variable. I'm personally interested in factors which may influence hostel prices because I'm planning a grad trip to Japan and I'm currently weighing accommodation options.
+
+## Stakeholder Interpretation
+
+Given my subject matter, stakeholders will likely be hostel managers interested in increasing earnings. Using results of my analysis they may be able to:
+
+* Identify key factors that justify changes to prices.
+
+* Adjust pricing & accommodation strategy accordingly.
+
+# Data Description
+
+This dataset "Hostel.csv" was created by Koki Ando, who scraped data from HostelWorld.com: "a global database with over 16,000 hostels." According to Ando, the data was scraped before the 2020 Tokyo Olympic games. 
+
+```{r, echo = FALSE, include = FALSE}
+#change to your pc path
+hostel <- read.csv("/Users/liamdaly/Downloads/Hostel 2.csv")
+```
+
+```{r}
+ncol(hostel)
+```
+
+```{r}
+nrow(hostel)
+```
+
+
+There are a total of 342 hostel observations included with 16 distinct variables.
+
+Each row denotes a unique Hostel in Japan. I'll explain each variable below.
+
+
+* “X”: categorical integer variable to identify the row number
+
+* “Hostel Name”: categorical character variable for the name of the hostel
+
+* “City”: categorical character variable for the city the hostel is based at
+
+* "price.from": continuous integer for minimum nightly price per night in Japanese yen
+
+* "Distance": character variable describing how far the hostel is from the city center in km
+
+* "rating.band": character variable variable describing how the customer rated the hostel
+
+* "lon": hotel's longitude
+
+* "lat": hotel's latitude
+
+All following rating score variables are on a scale from 0.0 to 10.0. They are collective scoring variables based on a variety of criteria.
+
+* “summary.score”: double ordinal variable for the mean the hostel's rating score based on all criteria
+
+* "atmosphere": double ordinal variable for score of hostel's atmosphere
+
+* "cleanliness": double ordinal variable for score of hostel's cleanliness
+
+* "facilities": double ordinal variable for score of hostel's facilities
+
+* "locaition.y": double ordinal variable for score of hostel's location
+
+* "security": double ordinal variable for score of hostel's security
+
+* "staff": double ordinal score for hostel's staff
+
+* "valueformoney": double ordinal score for hostel's value for money
+
+I will be selecting price.from as my response/outcome variable because I believe several relevant variables may be used as predictors related to it. Additionally, summary statistics for all of my variables are available in Appendix section A1.1
+
+# Exploratory Data Analysis
+
+## Data Cleaning
+
+Upon looking through the entire dataset, it's clear that it wasn't fit for analysis straight away. I began this process by removing NA's and duplicates. I also filtered out X, hostel.name longitude, and latitude, since I had no use for them. Distance was initially listed as a character variable. For analysis, I needed it to be double so I converted it while cutting out "km from city centre." City and rating.band only contained five categories so they were fit to include as a categorical variables.
+
+```{r, include = FALSE, echo = FALSE}
+library(dplyr)
+
+hostel <- hostel %>%
+  filter(complete.cases(hostel))
+
+hostel <- hostel |>
+  dplyr::select(-X, -hostel.name, -lon, -lat)
+
+hostel <- hostel |>
+  mutate(Distance = as.numeric(gsub("km from city centre", "", Distance)))
+```
+
+## Variable Distributions
+
+Upon analyzing the distribution of hostel prices, I found it was severely right skewed. After this, I decided to filter out prices greater than 1000000 yen. The distribution still was right skewed, so I removed outliers over 4500 yen in order to preserve normality (A2.1).
+
+```{r fig.align='center',fig.cap="Prices Distribution without Outliers", echo=FALSE, out.width="50%"}
+hostel <- filter(hostel, price.from <= 4500)
+
+ggplot(data = hostel, aes(x = price.from)) +
+  geom_histogram(binwidth = 500, fill = "turquoise", color = 1) +
+  labs(title = "Hostel Price Histogram", x = "Price", y = "Frequency")
+```
+
+\newpage
+
+Below, my city pie chart indicates a vast majority of the observations are from Tokyo, Osaka, and Kyoto. There's not much representation from Fukuoka or Hiroshima.
+
+```{r fig.align='center',fig.cap="City Distribution Pie Chart", echo=FALSE, out.width="50%"}
+
+custom_colors <- c("light blue", "turquoise", "gold", "orange",   "red" )
+
+stackbar <- ggplot(data = hostel) +
+  geom_bar(mapping = aes(x = "", fill = City), width = 1) +
+  labs(x = NULL, y = NULL) +
+  scale_fill_manual(values = custom_colors)
+
+stackbar + coord_polar(theta = "y") +
+  theme(aspect.ratio = 1)
+```
+
+Furthermore, my rating band bar chart indicates of the hostels are either rated Superb or Fabulous. There are few rated Very Good or Good and an extreme few that aren't rated.
+
+```{r fig.align='center',fig.cap="Rating Band Distribution", echo=FALSE, out.width="50%"}
+library(forcats)
+hostel$rating.band <- fct_rev(fct_infreq(hostel$rating.band))
+
+rating.dist <- ggplot(data = hostel) +
+  geom_bar(mapping = aes(x = rating.band, fill = rating.band), show.legend = F) +
+  labs(x = "Rating", y = "Count", title = "Distribution of Rating Categories") +
+  scale_fill_manual(values = c("Rating" = "red", "Good" = "orange", 
+                               "Very Good" = "yellow", "Fabulous" = "lightgreen", "Superb" = "dark green")) +
+  theme_minimal()
+
+rating.dist.plot1 <- rating.dist + coord_flip()
+rating.dist.plot1
+```
+
+
+\newpage
+
+The below chart shows that the vast majority of hostels are located within 10km (6.2 miles) of their respective city's center. The distribution is right skewed with few outliers. I'll remove the two outliers that have a distance greater than 21km.
+
+```{r fig.align='center',fig.cap="Distance Distribution", echo=FALSE, out.width="50%"}
+ggplot(hostel, aes(x = Distance)) +
+  geom_histogram(binwidth = 2, fill = "turquoise", color = "black") +
+  labs(x = "Distance", y = "Count", title = "Distribution of Distance from City Center in km") +
+  theme_minimal()
+hostel <- filter(hostel, Distance <= 21)
+```
+
+
+Below, you'll notice all distributions of scores appear extremely similarly left skewed. I needed to keep this in mind when checking for multicollinearity..
+
+```{r fig.align='center',fig.cap="Score Variables Distribution", echo=FALSE, out.width="50%"}
+p1 <- ggplot(hostel, aes(x = summary.score)) +
+  geom_histogram(binwidth = 0.5, fill = "turquoise", color = "black") +
+  labs(x = "Summary Score", y = "Count") +
+  theme_minimal()
+
+p2 <- ggplot(hostel, aes(x = atmosphere)) +
+  geom_histogram(binwidth = 0.5, fill = "turquoise", color = "black") +
+  labs(x = "Atmosphere", y = "Count") +
+  theme_minimal()
+
+p3 <- ggplot(hostel, aes(x = cleanliness)) +
+  geom_histogram(binwidth = 0.5, fill = "turquoise", color = "black") +
+  labs(x = "Cleanliness", y = "Count") +
+  theme_minimal()
+
+p4 <- ggplot(hostel, aes(x = facilities)) +
+  geom_histogram(binwidth = 0.5, fill = "turquoise", color = "black") +
+  labs(x = "Facilities", y = "Count") +
+  theme_minimal()
+
+p5 <- ggplot(hostel, aes(x = location.y)) +
+  geom_histogram(binwidth = 0.5, fill = "turquoise", color = "black") +
+  labs(x = "Location", y = "Count") +
+  theme_minimal()
+
+p6 <- ggplot(hostel, aes(x = security)) +
+  geom_histogram(binwidth = 0.5, fill = "turquoise", color = "black") +
+  labs(x = "Security", y = "Count") +
+  theme_minimal()
+
+p7 <- ggplot(hostel, aes(x = staff)) +
+  geom_histogram(binwidth = 0.5, fill = "turquoise", color = "black") +
+  labs(x = "Staff", y = "Count") +
+  theme_minimal()
+
+p8 <- ggplot(hostel, aes(x = valueformoney)) +
+  geom_histogram(binwidth = 0.5, fill = "turquoise", color = "black") +
+  labs(x = "Value for Money", y = "Count") +
+  theme_minimal()
+
+# Arrange the histograms in a 2x4 grid
+grid.arrange(p1, p2, p3, p4, p5, p6, p7, p8, nrow = 2, ncol = 4)
+```
+
+\newpage
+
+## Multicollinearity Exploration
+
+The correlation heatmap below indicates extremely high high correlation between summary.score and all other rating score predictors, which is expected since it serves as the average of them. I'll remove summary.score to prevent multicollinearity.
+
+```{r fig.align='center',fig.cap="Correlation Heatmap with Summary.Score", echo=FALSE, out.width="50%"}
+hostel_num <- select(hostel, -City, -rating.band)
+library(RColorBrewer)
+library(ggplot2)
+library(reshape2)
+corr_mat <- round(cor(hostel_num),2)
+ 
+melted_corr_mat <- melt(corr_mat)
+
+ 
+# plotting the correlation heatmap
+library(ggplot2)
+ggplot(data = melted_corr_mat, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(color = "white")   +
+  scale_fill_gradientn(colors = c("turquoise", "white", "dark red"), 
+                       limits = c(-1, 1), 
+                       name = "Correlation") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) +
+  labs(x = "", y = "") +
+  coord_fixed() +
+  geom_tile()
+```
+
+The plot below illustrates an improved degree of correlation after removing summary score.
+
+```{r, include = FALSE, echo = FALSE}
+hostel_cleaned <- select(hostel, -summary.score)
+```
+
+
+```{r, include = FALSE, echo = FALSE}
+hostel_num2 <- select(hostel_cleaned, -City, -rating.band)
+```
+
+```{r fig.align='center',fig.cap="Correlation Heatmap without Summary.Score", echo=FALSE, out.width="50%"}
+corr_mat2 <- round(cor(hostel_num2),2)
+ 
+
+melted_corr_mat2 <- melt(corr_mat2)
+
+ 
+
+library(ggplot2)
+ggplot(data = melted_corr_mat2, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(color = "white")   +
+  scale_fill_gradientn(colors = c("turquoise", "white", "dark red"), 
+                       limits = c(-1, 1), 
+                       name = "Correlation") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) +
+  labs(x = "", y = "") +
+  coord_fixed() +
+  geom_tile()
+```
+
+Score variables appear relatively highly correlated to each other, but I decided to keep them and later ran vif() during model building to assess whether or not they needed to be removed (A2.2). 
+
+# Regression Analysis
+
+## Model 1: Full Linear Model
+
+```{r}
+m1 <- lm(price.from ~ City + Distance + rating.band + atmosphere + 
+           cleanliness + facilities + location.y + security + staff + 
+           valueformoney, data = hostel_cleaned)
+summary(m1)
+```
+
+Fitting a model with price.from as the response and all other variables in hostel_cleaned as predictors resulted in an R squared of .1692 and an adjusted R squared of .1201. Only 16.92% of variance in minimum nightly hostel prices can be explained by this model. Given how this data is real, the relatively low R squared value isn't unexpected. 
+
+Using an alpha value of .1, significant predictors are revealed to be CityKyoto, Distance, cleanliness, facilities, security, and valueformoney. The most significant predictor is cleanliness and the least significant predictor is location.y. The model has a statistically significant F value, indicating the model is somewhat effective for explaining variation in minimum nightly hostel price. 
+
+Moving forward, my goal was to determine if this model could be improved.
+
+## Model Building
+
+I ran vif() on my full model, and rating.band's score of 12.629 indicated it contributed to some multicollinearity. I decided remove rating.band due to this result (A3.1).
+
+Despite how some of the score variables were moderately correlated to each other, the low GVIF values indicated they did not contribute to multicollinearity. I decided to keep them in my model moving forward. I then proceeded to initialize a second model with rating.band removed.
+
+```{r, echo = FALSE, include = FALSE}
+hostel_cleaned <- select(hostel, -rating.band)
+hostel_cleaned
+```
+
+### Model 2: Rating.Band Removed
+```{r}
+m2 <- lm(price.from ~ City + Distance + atmosphere + 
+           cleanliness + facilities + location.y + security + staff + 
+           valueformoney, data = hostel_cleaned)
+summary(m2)
+```
+
+```{r}
+vif(m2)
+```
+
+Model 2's R squared and adjusted R squared were slightly lower, as expected. The vif() output indicates multicollinearity was no longer an issue and I could make more progress with model improvement. The above output indicates the same predictors are statistically significant, so below I'll examine interactions.
+
+### Variable Interactions
+
+I noticed different intercepts and slopes depending on city in the visualization below. I decided to include the City x Distance interaction in my model to test if it contributed to improvements. I didn't notice any further interactions between City and the other numerical predictors (A3.2).
+
+```{r fig.align='center',fig.cap="Plot of Interaction between Distance and City", echo=FALSE, out.width="50%"}
+city_colors <- c("Fukuoka-City" = "light blue", 
+                 "Hiroshima" = "turquoise", 
+                 "Kyoto" = "yellow", 
+                 "Osaka" = "orange",
+                 "Tokyo" = "red")
+
+ggplot(hostel_cleaned, aes(x = Distance, y = price.from, color = City)) +
+  geom_point() +
+  scale_color_manual(values = city_colors) +
+  labs(x = "Distance", y = "Prices", title = "Interaction between City and Distance") +
+  theme_minimal()
+```
+
+
+### Model 3: Adding City x Distance Interaction
+
+```{r}
+m3 <- lm(price.from ~ City + Distance + City:Distance + atmosphere + 
+           cleanliness + facilities + location.y + security + staff + 
+           valueformoney, data = hostel_cleaned)
+summary(m3)
+```
+
+This output seemed extremely promising. Model 3 improved R squared by 4.3% and adjusted R squared by 3.04%. Significant predictors were identified as CityKyoto, CityTokyo, cleanliness, facilities, security, and valueformoney. I decided to run vif() on this model to check for multicollinearity.
+
+```{r}
+vif(m3)
+```
+
+Above, there are extremely high GVIF scores for City, Distance, and the interaction between city and distance. This indicates adding City:Distance inflated the variance of my estimates, and made my model unstable. To avoid multicollinearity, I decided to remove this interaction and proceed forward with model 2.
+
+### Assumption Tests and Transformations
+
+I found model 2 satisfied the linearity and constant variance assumptions, but it violated normality and independence (A3.3). I decided to test various transformations, and I found using sqrt(prices.from) was my best option. This transformation satisfied the normality assumption and best-satisfied constant variance and linearity compared to the other models I tested. It also slightly improved my R squared and adjusted R squared.
+
+However, the low p value on the Durbin-Watson test indicated autocorrelation, therefore independence was not satisfied. Notably, none of the transformations satisfied this assumption so I concluded the data was autocorrelated by default (A3.4)
+
+### Stepwise Selection
+My goal was to determine if I could further increase my R squared values to improve interpretability. I then used forward/backward stepwise regression to see if reducing predictors will work.
+
+The stepwise model displayed a slightly lower R squared but slightly greater adjusted R squared. CityKyoto, cleanliness, valueformoney, security, Distance, facilities, and atmosphere are statistically significant predictors with a = .10. There also was no indication of multicollineairty.
+
+Adjusted R squared improved and more predictors were statistically significant, so I decided select the stepwise model as my final model due to its simplicity (A3.4).
+
+## Final Model
+
+```{r}
+final_model <- lm(formula = sqrt(price.from) ~ City + cleanliness + valueformoney + 
+    security + Distance + facilities + atmosphere, data = hostel_cleaned)
+summary(final_model)
+```
+
+**F Test:**
+
+H_0: All model terms are unimportant for predicting the square root of minimum hostel prices
+
+H_A: At least one model term is useful for predicting minimum hostel prices
+
+The p value is statistically significant so reject H_0.
+
+**Interpretations**
+
+The R squared value of .1569 and adjusted R squared of .1265 indicate a minimal degree of variance in the square root of minimum nightly hostel prices in Japan can be explained by this model. Specifically, the data in my model explains only 15.69% of variance in prices.from. The adjusted R squared improved compared to model 2, indicating my final model is a better fit with respect to the amount of relevant predictors used. These values are relatively low, but they're still interpretable. My overall goal was never to make a highly accurate model. I simply wanted to make initial inferences on predictors given my results.
+
+**Predictors**
+
+Out of all predictors included the following are statistically significant:
+
+* The City of Kyoto
+
+* Cleanliness
+
+* Value for Money
+
+* Security
+
+* Distance 
+
+* Facilities
+
+* Atmosphere
+
+Cleanliness, Security, and Atmosphere are positively linearly associated with the square root of price.
+
+The City of Kyoto, Value for Money, Distance, and Facilities are negatively linearly associated with the square root of price.
+
+The most important predictors are the City of Kyoto, cleanliness, and value for money since they are associated with the highest absolute t values and lowest p values.
+
+**Coefficient Interpretations**
+
+* on average, the square root of minimum nightly hostel prices in Hiroshima is expected to be 0.2725 units lower compared to Fukuoka
+
+* on average, the square root of minimum nightly hostel prices in Kyoto is expected to be 4.3114 units lower compared to  Fukuoka
+
+* on average, the square root of minimum nightly hostel prices in Osaka is expected to be 1.7986 units lower compared to  Fukuoka
+
+* on average, the square root of minimum nightly hostel prices in Tokyo is expected to be .6754 units higher compared to  Fukuoka
+
+* for every one-unit increase in cleanliness rating, the expected square root of minimum nightly hostel prices increases by 2.2096 units, holding all other variables constant.
+
+* for every one-unit increase in the value for money score, the expected square root of minimum nightly hostel prices decreases by 2.2791 units, holding all other variables constant.
+
+* for every one-unit increase in security score, the expected square root of minimum nightly hostel prices increases by 1.2186 units, holding all other variables constant
+
+* for every one-unit increase in distance from city center in km, the expected square root of minimum nightly hostel prices decreases by approximately 0.2553 units, holding all other variables constant.
+
+* for every one-unit increase in facilities score, the expected square root of minimum nightly hostel prices decreases by 1.3527 units, holding all other variables constant
+
+* for every one-unit increase in atmosphere rating, the expected square root of minimum nightly hostel prices increases by 1.0992 units, holding all other variables constant.
+
+**Final Model Assumptions**
+
+After testing assumptions on my final model, I found it satisfied normality, linearity, and constant variance. It expectedly failed the independence assumption (A3.5).
+
+# Conclusion
+
+Essentially, I found that the following factors are significantly linearly related to the square root of hostel prices:
+
+* The City of Kyoto
+
+* Cleanliness
+
+* Value for Money
+
+* Security
+
+* Distance 
+
+* Facilities
+
+* Atmosphere
+
+Of these variables, cleanliness, security, and atmosphere are positively linearly associated with the square root of price while the city of Kyoto, value for money, distance, and facilities are negatively linearly associated with the square root of price.
+
+I determined that hostels further from the city center with higher facility and valueformoney scores tend to be associated with lower prices. Additionally, hostels in Kyoto tend to display lower rates compared to other cities.
+
+Most importantly: stakeholders, or hostel managers, should allocate resources towards maintaining safe, clean spaces with appealing atmosphere in order to justify charging higher rates.
+
+## Limitations and Future Work
+
+I need to emphasize that these interpretations should be taken with a grain of salt. My final model has a low R squared value, meaning only a very small portion of variability in hostel prices is explained by my predictors. My analysis can be used to make initial inferences, but more work is definitely needed in order to make definitive concrete determinations.
+
+The hostel data was scraped before 2020, so it's possible prices are extremely different today. Additionally, this dataset is heavily dependent on subjective opinion-based score data. I'd like to conduct further analysis using objective data such as occupancy per room in order to hopefully improve my model accuracy.
+
+
+
+\newpage
+
+# Appendix
+
+## Data Description
+
+### A1.1 Summary Statistics for all Variables
+```{r, include = FALSE, echo = FALSE}
+hostelA <- read.csv("/Users/liamdaly/Downloads/Hostel 2.csv")
+```
+
+```{r}
+summary(hostelA)
+```
+
+
+```{r}
+hostelA <- hostel
+```
+
+## Exploratory Data Analysis
+
+### A2.1 Response Plots
+
+```{r fig.align='center',fig.cap="Prices Distribution with Outliers", echo=FALSE, out.width="50%"}
+hostelRP <- read.csv("/Users/liamdaly/Downloads/Hostel 2.csv")
+
+ggplot(data = hostelRP, aes(x = price.from)) +
+  geom_histogram(binwidth = 1000, fill = "turquoise", color = 1) +
+  labs(title = "Hostel Price Histogram", x = "Price", y = "Frequency")
+```
+
+```{r fig.align='center',fig.cap="Prices Distribution without Outliers ", echo=FALSE, out.width="50%"}
+hostelRP <- filter(hostel, price.from <= 4500)
+
+ggplot(data = hostelRP, aes(x = price.from)) +
+  geom_histogram(binwidth = 500, fill = "turquoise", color = 1) +
+  labs(title = "Hostel Price Histogram", x = "Price", y = "Frequency")
+```
+
+\newpage
+
+### A2.2 Checking Correlation
+
+```{r}
+cor2 <- cor(hostel_num2)
+```
+
+```{r}
+cor2
+```
+
+I notice somewhat high degrees of correlation between certain score variables, however removing or combining them will weaken potential interpretability. My goal is to how individual score categories may contribute to price, so it'll be difficult to make conclusions if I remove or combine too many of them. Including scores despite moderately high correlation to each other will allow me to be more specific in my interpretations. I'll move forward and create a full regression model, then I'll analyze VIF scores to justify whether or not more predictors may interfere with analysis.
+
+
+## Regression Analysis
+
+### A3.1 VIF Analysis on Full Model
+
+```{r}
+vif(m1)
+```
+
+### A3.2 City x Rating Score Predictors
+
+I'll now examine possible interaction between City and each rating score predictor.
+
+```{r fig.align='center',fig.cap="Other Interactions with City I", echo=FALSE, out.width="50%"}
+city_atmosphere <- ggplot(hostel_cleaned, aes(x = atmosphere, y = price.from, color = City)) +
+  geom_point() +
+  scale_color_manual(values = city_colors) +
+  labs(x = "Atmosphere", y = "Price", title = "Interaction between Atmosphere and City") +
+  theme_minimal()
+
+# Scatter plot for cleanliness
+city_cleanliness <- ggplot(hostel_cleaned, aes(x = cleanliness, y = price.from, color = City)) +
+  geom_point() +
+  scale_color_manual(values = city_colors) +
+  labs(x = "Cleanliness", y = "Price", title = "Interaction between Cleanliness and City") +
+  theme_minimal()
+
+# Scatter plot for facilities
+city_facilities <- ggplot(hostel_cleaned, aes(x = facilities, y = price.from, color = City)) +
+  geom_point() +
+  scale_color_manual(values = city_colors) +
+  labs(x = "Facilities", y = "Price", title = "Interaction between Facilities and City") +
+  theme_minimal()
+grid.arrange(city_atmosphere, city_cleanliness, city_facilities, ncol = 1)
+```
+
+
+```{r fig.align='center',fig.cap="Other Interactions with City II", echo=FALSE, out.width="50%"}
+city_location <- ggplot(hostel_cleaned, aes(x = location.y, y = price.from, color = City)) +
+  geom_point() +
+  scale_color_manual(values = city_colors) +
+  labs(x = "Location", y = "Price", title = "Interaction between Location and City") +
+  theme_minimal()
+
+
+city_security <- ggplot(hostel_cleaned, aes(x = security, y = price.from, color = City)) +
+  geom_point() +
+  scale_color_manual(values = city_colors) +
+  labs(x = "Security", y = "Price", title = "Interaction between Security and City") +
+  theme_minimal()
+
+
+city_staff <- ggplot(hostel_cleaned, aes(x = staff, y = price.from, color = City)) +
+  geom_point() +
+  scale_color_manual(values = city_colors) +
+  labs(x = "Staff", y = "Price", title = "Interaction between Staff and City") +
+  theme_minimal()
+
+
+city_valueformoney <- ggplot(hostel_cleaned, aes(x = valueformoney, y = price.from, color = City)) +
+  geom_point() +
+  scale_color_manual(values = city_colors) +
+  labs(x = "Value for Money", y = "Price", title = "Interaction Value for Money and City") +
+  theme_minimal()
+
+# Arrange plots into a grid
+grid.arrange(city_location, city_security, city_staff, city_valueformoney)
+
+```
+
+\newpage
+
+### A3.3 Checking Model 2 Assumptions
+
+**Normality:**
+```{r}
+shapiro.test(m2$residuals)
+```
+
+```{r fig.align='center',fig.cap="Model 2 QQPlot", echo=FALSE, out.width="50%"}
+qqnorm(m2$residuals, main = "Normal Q-Q Plot for Model 2")
+qqline(m2$residuals, col = "Blue")
+```
+
+```{r fig.align='center',fig.cap="Model 2 Residuals", echo=FALSE, out.width="50%"}
+ggplot(data = hostel_cleaned, aes(x = m2$residuals)) +
+  geom_histogram(binwidth = 150, fill = "turquoise", color = 1) +
+  labs(title = "Model 2 Residuals Histogram", x = " Residuals", y = "Frequency")
+```
+
+The low p value indicates normality is violated. However, the points on the qqplot are relatively close to the qqline and the residual bar plot appears nearly normal. I believe transformations on my response may improve this assumption.
+
+
+
+**Linearity and Constant Variance:**
+```{r fig.align='center',fig.cap="Model 2 Residuals v Fitted", echo=FALSE, out.width="50%"}
+plot(m2$fitted.values, m2$residuals, col = "turquoise", 
+     xlab = "Fitted Values", ylab = " Residuals", main = "Model 2 Residual Plot")
+```
+
+```{r fig.align='center',fig.cap="Other Model 2 Assumption Plots", echo=FALSE, out.width="50%"}
+plot(m2)
+```
+
+
+There is somewhat random scattering of points. There seems to be slightly visible downward linear patterns concentrated toward the middle of the plot. Given how there are no blatant patterns, I conclude constant variance is approximately satisfied.
+
+Additionally, the red fitted line appears reasonably close to the dashed line. Therefore, this indicates linearity approximately holds. 
+
+**Independence:**
+```{r}
+dwt(m2)
+```
+
+The p value is barely less than a = .05, indicating residuals may be correlated. Independence is not satisfied.
+
+These results suggests a transformation on price.from is warranted.
+
+### A3.4 Transformations on Prices
+
+```{r}
+summary(m2)
+```
+
+
+
+Square root:
+```{r}
+m2_t1 <- lm(formula = sqrt(price.from) ~ City + Distance + atmosphere + cleanliness + 
+    facilities + location.y + security + staff + valueformoney, 
+    data = hostel_cleaned)
+summary(m2_t1)
+vif(m2_t1)
+```
+
+There is slight improvement on R squared and adj. R squared. VIF indicates no multicollinearity.
+
+```{r fig.align='center',fig.cap="Residuals Histogram: Square Root Transformation", echo=FALSE, out.width="50%"}
+ggplot(data = hostel_cleaned, aes(x = m2_t1$residuals)) +
+  geom_histogram(binwidth = 1, fill = "turquoise", color = 1) +
+  labs(title = "Residuals Histogram: Square Root Transformation", x = "Residuals", y = "Frequency")
+```
+
+```{r fig.align='center',fig.cap="Square Root Transformation Assumption Plots", echo=FALSE, out.width="50%"}
+plot(m2_t1)
+```
+
+\newpage
+
+```{r}
+shapiro.test(m2_t1$residuals)
+dwt(m2_t1)
+```
+
+Normality is improved, given the plots along with the fact that the p is greater than .05. Constant variance and linearity assumptions still approximately hold. Independence is worsened, given how its p value is lower than model 2. 
+
+Log:
+```{r}
+m2_t2 <- lm(formula = log(price.from) ~ City + Distance + atmosphere + cleanliness + 
+    facilities + location.y + security + staff + valueformoney, 
+    data = hostel_cleaned)
+summary(m2_t2)
+vif(m2_t2)
+```
+
+There is greater improvement on R squared and adj. R squared. VIF indicates no multicollinearity.
+
+```{r fig.align='center',fig.cap="Residuals Histogram: Inverse Transformation", echo=FALSE, out.width="50%"}
+ggplot(data = hostel_cleaned, aes(x = m2_t2$residuals)) +
+  geom_histogram(binwidth = .1, fill = "turquoise", color = 1) +
+  labs(title = "Model 2 Residuals Histogram: Log Transformation", x = "Residuals", y = "Frequency")
+```
+
+```{r fig.align='center',fig.cap="Log Transformation Assumption Plots", echo=FALSE, out.width="50%"}
+plot(m2_t2)
+```
+
+\newpage
+
+```{r}
+shapiro.test(m2_t2$residuals)
+dwt(m2_t2)
+```
+
+Normality is improved, given the plots along with the fact that the p is greater than .05. However, the square root transformation better-maintained this assumption. Constant variance and linearity assumptions still approximately hold. Independence is even further worsened, given how its p value is lower than model 2. 
+
+Inverse:
+```{r}
+m2_t3 <- lm(formula = 1/(price.from) ~ City + Distance + atmosphere + cleanliness + 
+    facilities + location.y + security + staff + valueformoney, 
+    data = hostel_cleaned)
+summary(m2_t3)
+vif(m2_t3)
+```
+
+This displays the greatest improvement on R squared and adj. R squared. VIF indicates no multicollinearity.
+
+```{r fig.align='center',fig.cap="Residuals Histogram: Inverse Transformation", echo=FALSE, out.width="50%"}
+ggplot(data = hostel_cleaned, aes(x = m2_t3$residuals)) +
+  geom_histogram( fill = "turquoise", color = 1) +
+  labs(title = "Model 2 Residuals Histogram: Inverse Transformation", x = "Residuals", y = "Frequency")
+```
+
+```{r fig.align='center',fig.cap="Inverse Transformation Asssumption Plots", echo=FALSE, out.width="50%"}
+plot(m2_t3)
+```
+
+```{r}
+shapiro.test(m2_t3$residuals)
+dwt(m2_t3)
+```
+
+
+Normality is not satisfied since there is visible deviation from the qqline, and the Shapiro-Wilk p value is furthest from .05. Constant Variance and Linearity still approximately hold. The p value for the Durbin-Watson test is still less than .05, indicating independence is violated.
+
+When considering these results, I believe a square root transformation is the best option since it upholds normality, constant variance, and linearity as best as possible. I will move forward with m2_t1.
+
+### A3.4 Stepwise Regression
+
+```{r}
+#null model with no predictors
+stepwise_null_model = lm(sqrt(price.from) ~ 1, hostel_cleaned)
+
+#full model with all relevant predictors
+stepwise_full_model <- lm(sqrt(price.from) ~ City + Distance + atmosphere + 
+    cleanliness + facilities + location.y + security + staff + 
+    valueformoney, data = hostel_cleaned)
+```
+
+```{r}
+stepwise_model <- step(stepwise_null_model, scope = list(lower = stepwise_null_model, upper =
+stepwise_full_model), direction = "both")
+```
+
+### A3.5 Final Model Assumptions
+```{r fig.align='center',fig.cap="Residuals Histogram: Final Model", echo=FALSE, out.width="50%"}
+ggplot(data = hostel_cleaned, aes(x = stepwise_model$residuals)) +
+  geom_histogram(binwidth = 1, fill = "turquoise", color = 1) +
+  labs(title = "Residuals Histogram: Final Model", x = "Residuals", y = "Frequency")
+```
+
+```{r fig.align='center',fig.cap="Final Model Assumption Plots", echo=FALSE, out.width="50%"}
+plot(stepwise_model)
+```
+
+```{r}
+shapiro.test(stepwise_model$residuals)
+dwt(stepwise_model)
+```
+
+# References
+
+https://www.kaggle.com/datasets/koki25ando/hostel-world-dataset
+
+https://www.hostelworld.com
+
+
