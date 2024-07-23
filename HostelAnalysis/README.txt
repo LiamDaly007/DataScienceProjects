@@ -15,7 +15,7 @@ The dataset can be found here: https://www.kaggle.com/datasets/koki25ando/hostel
 
 
 ## Usage
-To use replicate the analysis on your own computer, please follow the following steps:
+To replicate the analysis on your own computer, please follow the following steps:
 
 1. Install all project files to your computer.
 2. Right click on "Hostel 2.csv" and copy the path to this file
