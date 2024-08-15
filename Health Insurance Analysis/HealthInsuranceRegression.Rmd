@@ -1,0 +1,1003 @@
+---
+title: "Final Report: Multiple Regression Analysis on Variables that may Predict Health Insurance Charges" 
+author: "Liam Daly, Luis Colin Cornejo, Nicholas Khemvisay"
+date: '2023-12-08'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+library("tidyverse")
+library("ggplot2") 
+library("gridExtra")
+library("GGally")
+library("car")
+```
+
+\newpage 
+\tableofcontents 
+\newpage
+\listoffigures
+\newpage
+\listoftables
+\newpage
+
+# Introduction
+
+## Subject Matter
+
+For this project, we are working with a health insurance dataset. Our main objective is to assess the impact of several predictor variables on the health insurance charges, the response variable. To accomplish this, we'll build a multiple regression model that can predict charges as an outcome.
+
+## Research Question
+
+Which predictor variables in the health insurance data set are most important for influencing changes in insurance charges?
+
+## Motivation
+
+Understanding the impact of several independent variables on insurance charges can have implications for healthcare resource planning. Different demographic groups may have distinct healthcare needs and utilization patterns. Hospitals, healthcare providers, and insurers can leverage this information to allocate resources efficiently, anticipate demand for specific services, and tailor preventive care programs for different groups (National Academies of Sciences) 
+
+Primarily, we are interested in determining which individual variables have the strongest linear relationship with with health insurance charges. Parties of interest or stakeholders can use the results of our analysis to make data-driven decisions based on the key variables that have the most influence on insurance charges. 
+
+## Hypothesis
+
+We believe that age, BMI, an individual's smoking habits, and number of children are the best predictors for insurance charges. Specifically, we hypothesize that all four variables and interactions of interest will demonstrate positive linear relationships with insurance charges. Additional explanation on our reasoning for this hypothesis can be found in the appendix.
+
+## Data Description and Defintion of Key Variables
+
+```{r include=FALSE}
+
+insurance <- read.csv("/Users/liamdaly/Downloads/insurance.csv")
+
+```
+
+```{r}
+ncol(insurance)
+nrow(insurance)
+```
+
+As you can see from the R output above, each row of the insurance data set contains seven variables. There are a total of 1338 rows, meaning data was collected from 1338 separate individuals. Details of the seven variables are listed below.
+
+
+
+```{r, include = FALSE}
+summary(insurance)
+sd(insurance$age)
+sd(insurance$bmi)
+sd(insurance$children)
+sd(insurance$charges)
+```
+\begin{table}[h]
+\begin{center}
+\begin{tabular}{|c|c|c|c|c|c|c|}
+\hline 
+Variable & Type & Min & Max & Descr. & Mean & SD\\
+\hline 
+Age $x_1$ & Num. Con. & 18 & 64 & Identifies patient's age in discrete numbers. & 39.21 & 14.05\\
+\hline 
+Sex $x_2$ & Categ. & 0 & 1 & Identifies patient's sex (male or female) & N/A & N/A\\
+\hline 
+BMI $x_3$ & Num. Con. & 15.96 & 54.13 & Identifies patient's Body Mass Index  & 30.66 & 6.10\\
+\hline 
+Children $x_4$ & Num. Disc. & 0 & 5 & Identifies patient's number of children & 1.095 & 1.20\\
+\hline
+Smoker $x_5$ & Categ. & 0 & 1 & Identifies patient's smoker status (yes or no) & N/A & N/A\\
+\hline
+Region $x_6$ & Categ. & 0 & 1 & Identifies region where patient lives (4 possibilities) & N/A & N/A\\
+\hline
+Charges $y$ & Num. Cont. & 1122 & 63770 & Patient's total health insurance charge & 13270 & 12110.01\\
+\hline
+\end{tabular}
+\end{center}
+\caption{Data Summary Statistics}
+\end{table}
+
+```{r, echo = FALSE}
+#variable initialization
+x1 <- insurance$age
+x2 <- insurance$sex
+x3 <- insurance$bmi
+x4 <- insurance$children
+x5 <- insurance$smoker
+x6 <- insurance$region
+y <- insurance$charges
+```
+## Exploratory Data Analysis
+
+By using various exploratory data analysis methods, we' hope we'll thoroughly check all variables in the full model below.
+
+$y = \beta_0 + \beta_1 x_1 +   \beta_2 x_2 + \beta_3 x_3 + \beta_4 x_4 + \beta_5 x_5 + \beta_6 x_6 + \epsilon$
+
+To explore the distributions and relationships within our data we first created predictor plots, response plots, and predictors vs. response plots. After this, we analyzed the output of our full model and tested for multicollinearity. Our key findings are below
+
+- Predictor plots indicate that there are more younger individuals and non-smokers represented in the data set (Appendix A1.2).
+- Right-skewed response plot shows that the majority of individuals have lower charges, with few cases having substantially higher charges (Appendix A1.3).
+- Response v. predictor plots most notably indicated age, number of children, and smoker would likely be the strongest predictors (Appendix A1.4).
+- Summary output from our full model showed that all predictor coefficients except sex were statistically significant. $R^2$ indicates that the model explains approximately 75.09% of the variability in insurance charges, therefore there's room for potential improvement in  $R^2$ (Appendix A1.5). 
+- ggpairs(insurance) and vif(insurance) do not indicate the presence of multicollinearity (Appendix A1.6 & A1.7).
+
+### Checking the Normality Assumption
+
+Lastly, below we'll check if the residuals of y are normally distributed
+
+
+
+```{r fig.align='center',fig.cap="Full Model Residual Plot", echo=FALSE, out.width="25%"}
+
+###Figure 1
+insurance.mlr<-lm(charges~age+sex+bmi+children+smoker+region,data=insurance)
+hist(insurance.mlr$residuals, breaks = 90, xlab = "Insurance Charges Residuals", main = "Full Model Residual Plot")
+```
+
+
+
+Based on the figure above, the residuals violate normality. 
+
+# Regression Analysis
+
+## Assumptions
+
+Primarily, we aimed to satisfy the four assumptions below.
+
+1. Normality: The distribution of the residuals are approximately normally distributed.
+
+2. Constant Variance: The variability of the least squares line is constant. 
+
+3. Linearity: There is a linear relationship between response and predictor variables.
+
+4. Independence: Residuals are independent from each other.
+
+## Model Building
+To satisfy the normality assumption, we went through the process of finding the functional form of our x variables. We constructed multiple linear models to check if our numerical independent variables and interactions with categorical variables effectively contributed to normality and linearity. 
+
+After examining the outputs, we decided to keep age $x_1$, BMI $x_3$, and number of children $x_4$ in our model. We found that smoker also contributes to linear patterns, so we decided to keep smoker's $x_5$ interactions with all three numerical predictors as well (Appendix A2.1).
+
+In spite of our model reductions normality still did not hold, so we found it necessary to use the transformation $log(y)$ in order to satisfy normality. We also decided to remove intercepts because an individual cannot generate insurance charges if all three numeric x variables equal zero (Appendix A2.2).
+
+Next, we individually removed each independent variable and interactions one by one to determine if any removals would improve assumptions or the $R^2$ value (Appendix A2.3). After this, we decided to conduct stepwise regression in both directions to narrow down our candidates even further (Appendix A2.4).
+
+## Final Model
+We decided on this as our final model:
+
+$log(y) = 0 + \beta_1 x_1 + \beta_2 x_3 + \beta_3 x_4 + \beta_4 (x_1)(x_5) + \beta_5 (x_3)(x_5)+ \epsilon$
+
+The full summary output is found in Appendix A2.6.
+```{r, include=FALSE}
+#removing z3
+smoker = ifelse(insurance$smoker=="yes", 1, 0)
+ 
+z1<-smoker * x1
+z2 <-smoker * x3
+z3 <- smoker * x4
+lm14 <-lm(log(y)~ 0 + x1 + x3 + x4 + z1 + z2)
+
+y14 <- lm14$residuals
+qqnorm(lm14$residuals)
+qqline(lm14$residuals)
+plot(lm14$fitted.values, lm14$residuals)
+shapiro.test(lm14$residuals)
+summary(lm14)
+dwt(lm14)
+```
+
+### Final Model Assumptions
+```{r, figures-side, fig.show = "hold", fig.align='center',fig.cap="Final Model Assumption Checking Plots", echo=FALSE, out.width="25%"}
+hist(y14, breaks = 90, xlab = "Final Model Residuals", main = "Histogram of Residuals for Final Model")
+qqnorm(lm14$residuals, main = "Normal Q-Q Plot for Final Model")
+qqline(lm14$residuals)
+plot(lm14$fitted.values, lm14$residuals, xlab = "Final Model Fitted Values", ylab = "Final Model Residuals", main = "Final Model Residual Plot")
+```
+
+
+```{r, echo = "FALSE"}
+shapiro.test(lm14$residuals)
+dwt(lm14)
+```
+1. Normality: There's a clear bell curve pattern on the residuals histogram, and the points on the normal Q-Q plot follow the line extremely closely. The high p-value from the Shapiro-Wilk test further proves that the normality assumption holds.
+
+2. Constant Variance: The points seem evenly distributed on the y axis of the residuals v. fitted plot, so we conclude that constant variance holds.
+
+3. Linearity: Strangely, there seems to be three parallel downward linear patterns on our residuals vs. fitted plot. This may indicate the presence of a hidden variable in the data set. For now, we'll assume that linearity is approximately satisfied but we'll discuss this more in our limitations.
+
+4. The Durbin-Watson p value .356 > .05, so we'll conclude that the residuals are not correlated, therefore independent from each other.
+
+### Interpretation of Coefficients
+Full output of the summary function on our final model is found in Appendix A2.6
+
+- $x1$ (age): $\beta_1$ = .075854
+  - A one-unit increase in age is associated with an average change of 100 * 0.075854 % in insurance charges      (while holding other predictors constant). T test result p < 2e-16 indicates the existence of the positive linear association between $x_1$ and log(y) when all other independent variables are held fixed.
+
+- $x3$ (BMI): $\beta_2$ = .173248
+  - A one-unit increase in BMI is associated with a average change of 100 * 0.173248 %  insurance charges         (while holding other predictors constant). T test result p < 2e-16 indicates the existence of the positive linear association between $x_3$ and log(y) when all other independent variables are held fixed.
+
+- $x4$ (children): $\beta_3$ = .248180
+  - A one-unit increase in the number of children is associated with an average change of 100 * 0.248180%         increase in insurance charges (while holding other predictors constant). T test result p = 1.23e-15 indicates the existence of the positive linear association between $x_4$ and log(y) when all other independent variables are held fixed.
+
+- $(x_1)(x_5)$: $\beta_4$ (age * smoker): $\beta_4$ = -.020711
+  - The interaction term between smoker and age is associated with an average change of 100 * -0.020711%          decrease in insurance charges (while holding other predictors constant). T test result p = .00543 indicates the existence of the slight negative linear association between $x_1 * x_5$ and log(y) when all other independent variables are held fixed.
+
+- $(x_3)(x_5)$: $\beta_5$ (BMI * smoker): $\beta_5$ = .075454
+  - The interaction term between smoker and BMI is associated with an average change of 100 * 0.075454%           increase in insurance charges (while holding other predictors constant). T test result p < 2e-16 indicates the existence of the positive linear association between $x_3 * x_5$ and log(y) when all other independent variables are held fixed.
+   
+Age, BMI, children, and BMI * smoker contribute positively to the natural log of charges while age * smoker contributes negatively.
+
+### Checking for Multicollineairty
+The statistical significance of all coefficient p-values indicates that multicollineaity is not present (Appendix A2.6). Furthermore, no variables display values greater than 10 in our VIF test, so there are no indications for multicollinearity in our final model (Appendix A2.7). 
+
+### Interpretation of the Coefficient of Determination,  $R^2$
+
+Our $R^2$ value .9779 is extremely close to 1. This indicates that our model is an excellent fit for data. Furthermore, our model explains approximately 97.8% of the variance in the log of insurance charges (Appendix A2.6).
+
+### Interpretation of F Test
+
+H_0: $\beta_1 = \beta_2 = \beta_3 = \beta_4 = \beta_5$ (all model terms are unimportant for predicting log(y)
+
+H_A: At least one model term is useful for predicting log(y)
+
+The p-value for the F test statistic is < 2.2e-16. Given that all of our coefficient p-values were statistically significant, we can conclude that all of our model terms are useful for predicting log(y) (Appendix A2.6).
+
+# Conclusion
+
+Our final model suggests that age, BMI, number of children, and their interactions with smoking status are the strongest predictors of health insurance charges. The high R-squared value indicates an excellent fit, and the coefficients provide insights into the directions and strengths of the relationships between predictors and charges. 
+
+Our initial hypothesis was somewhat correct. Age, BMI, number of children, and smoker turned out to be the best predictors for insurance charges. However, the crucial interactions were smoker with age and BMI respectively, since we removed the interaction between smoker and number of children due to insignificance. 
+
+All numerical predictors plus the interaction between BMI and smoker turned out to have positive slope coefficients. This indicates that higher values of the natural log of charges are associated with the categories below:
+
+- older patients
+- overweight patients
+- patients with more children
+- overweight smokers
+
+We believe interaction between age and smoker's negative slope coefficient is attributed to the higher amount of younger individuals are represented in the insurance data set. Younger smokers are expected to generate lower charges than older smokers, due to the positive linear relationship between age and charges.
+
+Based on our results, we recommend healthcare providers to anticipate higher insurance charges associated with services for older patients, overweight patients, those who have more children, and overweight smokers.
+
+# Limitations
+
+While we believe our final model model is extremely accurate for predicting log(charges), there are a few limitations to be aware of.
+
+Out of the 6 predictor variables only 4 hold some significance to predicting insurance charges. From experimenting with the model, we found that sex and region hold little to almost no significance to predicting the outcome insurance charges, so we quickly scrapped the use of these variables after experimenting more with the models to get our final (Appendix A2.1).
+  
+Upon analyzing the residuals v. fitted plot of our final model, we noticed a pattern that looked like three downward lines with different intercepts yet similar slopes.
+```{r, fig.show = "hold", fig.align='center',fig.cap="Residuals v. Fitted Linear Patterns", echo=FALSE, out.width="50%"}
+knitr::include_graphics("/Users/liamdaly/Downloads/IMG_0858.jpg")
+```
+We thought bmi was causing this pattern somehow, so we decided to color code distinct bmi zones.
+
+The CDC states a healthy BMI is between 18.5 and 24.9, and that an overweight BMI is above 29.9. We'll color code according to these observations (CDC).
+
+BMI < 24.9 = green
+
+BMI greater than 24.9 and less than 29.9 = black
+
+BMI > 29.9 = red
+
+```{r, fig.show = "hold", fig.align='center',fig.cap="Residuals v. Fitted with Color Coding Based on BMI", echo=FALSE, out.width="50%"}
+plot(lm14$fitted.values, lm14$residuals, main = "Residuals v. fitted with color coding based on BMI")
+points(lm14$fitted.values[x3 < 24.9], y14[x3 < 24.9], col = "green")
+points(lm14$fitted.values[x3 > 29.9], y14[x3 > 29.9], col = "red")
+```
+As you can see, the red BMI may be able to partially explain lower line, but the middle and higher lines seem to be a mix off all zones. We also found it strange how the red zone is highly prevalent in the higher and lower lines, but not in the middle.
+
+Next, we decided to color code the smoker variable, $x_5$.
+
+red = an individual smokes
+
+blue = an individual does not smoke
+
+```{r, fig.show = "hold", fig.align='center',fig.cap="Residuals v. Fitted with Color Coding Based on Smoker", echo=FALSE, out.width="50%"}
+plot(lm14$fitted.values, lm14$residuals, main = "Residuals v. Fitted with color coding based on Smoker")
+points(lm14$fitted.values[x5=="yes"], y14[x5=="yes"], col = "red")
+points(lm14$fitted.values[x5=="no"], y14[x5=="no"], col = "blue")
+```
+As you can see, "smoker = no" clearly explains the lower line, but the higher line seems to be a mix of "yes" and "no" points. We only know that the lower line is largely attributed to smoker = "no", but we still have no conclusive information about the middle and higher lines.
+
+Throughout our entire analysis, we thoroughly analyzed all relationships between numerical and categorical independent variables. The pattern displayed above may suggest the existence of another categorical variable which may have been omitted from the insurance data set. Therefore, a hidden interaction between an independent categorical variable and our independent numerical variables may be present. Linearity may be satisfied on a residuals v. fitted plot that takes the hidden interaction into account. Given the data we worked with, we can assume that linearity is only approximately satisfied. 
+
+Our analysis is limited to the data that's present in insurance.csv, so we are unable to make any concrete conclusions about the unknown factor. We can only hypothesize that it seems to affect these two assumptions.
+
+\newpage
+# Appendix 
+
+## Introduction
+
+### Data Collection
+
+The original data was collected from a series of data sets found in the book "Machine Learning with R" by Brett Lantz. It is a simulated data set based on demographic statistics from the US Census Bureau (Lantz).
+
+### Supportive Material for Hypothesis
+
+Data from the US Department of Health and Human Services shows that "out of pocket healthcare expenses for adults 65 and older rose 41% from 2009 to 2019" and according to a Gallup Article by Nicole Willcoxon, older individuals tend to experience an "increased demand for health services" (Wilcoxon).
+
+Furthermore, data from the Medical Expenditure Panel Survey suggests that higher BMI and obesity is "associated with $1,861" excess annual medical costs per person (Ward et al.).
+
+Additionally, a 2013 analysis of 2006-2010 Medical Expenditure Panel Survey indicated that "8.7% (95% CI=6.8%, 11.2%) of annual healthcare spending in the U.S. could be attributed to cigarette smoking." This percentage amounted to "as much as $170 billion per year" (Xu et al.).
+
+Lastly, data extracted from the Institute of Health Metrics and Evaluation Disease Expenditure's 2013 Database shows an "increase in healthcare spending on children from $149.6 billion [in 1996] to $233.5 billion in 2013" (Bui et al).
+
+### Exploratory Data Analysis
+
+### A1.1: Summary of Insurance Data
+```{r}
+summary(insurance)
+```
+
+### A1.2: Predictor Plots
+```{r, fig.align='center', out.width="50%"}
+# Histograms and barplots for predictors
+# Create six plots and store in variable
+h1<-ggplot(insurance, aes(x=age)) + geom_histogram(binwidth=4)
+h2<-ggplot(insurance, aes(x=bmi)) + geom_histogram(binwidth=4)
+h3<-ggplot(insurance, aes(x=children)) + geom_histogram(binwidth=2)
+b1<-ggplot(data=insurance, aes(x=sex))+geom_bar()
+b2<-ggplot(data=insurance, aes(x=smoker)) + geom_bar()
+b3<-ggplot(data=insurance, aes(x=region)) + geom_bar()
+
+# Divide frame with grid.arrange function 
+# and put above created plots int it
+
+grid.arrange(h1, h2,h3, b1,b2,b3, ncol = 3,nrow=2)
+```
+- The histogram for age indicates that the distribution is roughly skewed to the right. This means that there are more individuals with ages towards the lower end of the scale.
+
+- The histogram for BMI appears to be approximately normally distributed. The shape suggests a balanced spread of BMI values without a significant skew.
+The histogram for the number of children shows a right-skewed distribution. Most individuals seem to have fewer children.
+
+- The bar plot for sex shows that the counts of male and female individuals are relatively close, suggesting a balanced distribution between the sexes.
+
+- The bar plot for smoker highlights a significant imbalance between smokers and non-smokers. There are notably more non-smokers than smokers in the dataset.
+
+- Bar plot for region indicates a higher amount of individuals are from the southeast.
+
+### A1.3: Response Plot
+```{r, fig.align='center', out.width="50%"}
+ggplot(insurance, aes(x=charges)) + geom_histogram(binwidth=2000)
+```
+
+
+The right-skewed histogram of insurance charges above suggests that the majority of individuals have lower charges, with a few cases having substantially higher charges. This observation aligns with the typical distribution of healthcare costs, where a relatively small proportion of individuals may incur significantly higher expenses.
+
+### A1.4: Predictors vs. Response Plots
+```{r, fig.align='center',out.width="50%"}
+# Create six plots and store in variable
+
+# Scatter plots for numerical variables
+s1<-ggplot(insurance, aes(x=age, y=charges)) + geom_point()
+s2<-ggplot(insurance, aes(x=bmi, y=charges)) + geom_point()
+s3<-ggplot(insurance, aes(x=children, y=charges)) + geom_point()
+
+# Box plots for categorical variables
+box1<-ggplot(insurance, aes(x=sex, y=charges)) + 
+  geom_boxplot(outlier.colour="red", outlier.shape=8,
+                outlier.size=4)
+box2<-ggplot(insurance, aes(x=smoker, y=charges)) + 
+  geom_boxplot(outlier.colour="red", outlier.shape=8,
+                outlier.size=4)
+
+box3<-ggplot(insurance, aes(x=region, y=charges)) + 
+  geom_boxplot(outlier.colour="red", outlier.shape=8,
+                outlier.size=4)
+
+# Divide frame in grid using grid.arrange function 
+# and put above created plot int it
+grid.arrange(s1, s2,s3,box1, box2, box3, ncol = 3,nrow=2)
+```
+- Age vs. Charges (Scatter Plot): The scatter plot of age against insurance charges shows the distribution of charges across different age groups. From the graph, we can see that insurance charges tend to increase with age, suggesting a possible positive correlation.
+
+- BMI vs. Charges (Scatter Plot): The scatter plot of BMI against insurance charges shows whether there is a relationship between an individual's BMI and their insurance charges. On this plot we don't see a clear pattern yet.
+
+- Number of Children vs. Charges (Scatter Plot): The scatter plot of the number of children against insurance charges demonstrates whether there is an association between number of children covered by insurance and insurance charges. From this plot we see that as the number of children increases the charges of insurance seem to decrease, suggesting a possible negative correlation.
+
+- Sex vs. Charges (Box Plot): This box plot compares insurance charges between genders. From this plot, we see that there is some overlap between both genders and many outliers present, which might indicate gender to not be a great predictor for insurance charges. 
+
+- Smoker vs. Charges (Box Plot): This box plot examines the impact of smoking status on insurance charges. Here we see that there is no overlapping between the yes and no boxes, which might indicate that smoker is a good predictor for insurance charges.
+
+- Region vs. Charges (Box Plot): This box plot examines the impact of region on charges. There's overlapping between all four categories, indicating region may not be a good predictor for charges.
+
+### A1.5: Inital Full Model Output and Residual Plot
+```{r fig.align='center', out.width = "50%"}
+insurance.mlr<-lm(charges~age+sex+bmi+children+smoker+region,data=insurance)
+summary(insurance.mlr)
+```
+
+From our initial linear model we can identify the significant predictors. In the output of our model we see that the F test's p-value is statistically significant suggesting that at least some of the predictor variables are associated with the response variable. The significant predictors include age, BMI, children, and smoking status. Sex is not a great significant predictors. We also see that the model explains approximately 75.09% of the variability in insurance charges. The adjusted R-squared value of 0.7494 tells us that, considering all the predictors in the model, this value is very close to the multiple R-squared.
+
+
+### A1.6: Multicollinearity Analysis I: ggpairs()
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+ggpairs(insurance)
+```
+
+We used the ggpairs function, part of the GGally package, to create a matrix of plots to explore the pairwise relationships between variables. In our case, the variables include age, sex, BMI, children, smoker, and charges. Let's interpret the key information from this matrix:
+
+- Smooth density curves: 
+The BMI density curve tells us that the data is roughly normally distributed as we have seen before. The density curve for age tells us that the distributions of ages is fairly consistent with a skewness to the right. The children density curve has many drops possibly indicating that there are distinct groups or clusters within the data related to the number of children. Our last density curve for charges indicates again a big skewness to the right in the data as we have observed before. 
+
+- Scatter plots:
+Most scatter plots in our output tell us that the variables have noting to do with each other such as with age and children, and bmi and children since the points on the plot do not follow any pattern. On the other side, we do see some patterns (possibly positive linear relationships) with the predictors and charges (response) as expected. 
+
+- Histograms:
+Along the diagonal of the ggpairs plot, we see some individual histograms for each variable. The shape of each histogram reinforce the insights we discovered previously from the data such as their distribution and skewness. The histograms of individual predictors across the other different predictors are very consistent with their different categories having a similar spread. 
+
+- Bar plots for frequency:
+In our ggpairs plot we also see bar plots for our categorical data which give us insights on how these variables are distributed. Same as with the individual and predictor vs predictor histograms, our bar plots highlight the consitency of the data across the different categories.  
+
+- Box plots:
+The box plots for sex asnd smoker against age appear to show roughly similar distributions. This suggests that, based on age, there might not be significant differences between the groups represented by these categorical variables. We see the same thing in box plots against sex, BMI and children. In general, there may not be significant variations or differences in the distributions of our variables due to similar spread, medians and skewness and outliers.  
+
+Correlations:
+The correlation coefficients provide insights into the strength and direction of relationships between pairs of variables.
+
+- BMI and Age (0.109***): The correlation coefficient of 0.109 indicates a positive but weak correlation between BMI and age. This suggests a slight tendency for individuals with higher ages to have higher BMI values.
+- Children and Age (0.042): The correlation coefficient of 0.042 suggests a very weak positive correlation between the number of children and age. This correlation is not strong.
+- Charges and Age (0.299***): The correlation coefficient of 0.299 indicates a moderate positive correlation between charges and age. This suggests that, on average, older individuals tend to have higher insurance charges.
+- BMI and Charges (0.198***): The correlation coefficient of 0.198 indicates a moderate positive correlation between BMI and charges. This suggests that individuals with higher BMI values may, on average, have higher insurance charges.
+- Children and Chargezs (0.068*): The correlation coefficient of 0.068 suggests a weak positive correlation between the number of children and charges. This correlation is not strong. I'ts important to rembember that correlation does not imply causation. Further analysis is needed to understand these relationships.
+
+Given how none of the plots or correlation coefficients indicate notable high correlation, the ggpairs() function does not output any clear instances of multicollinearity.
+
+### A1.7: Multicollinearity Analysis I: Variance Inflation Factor
+```{r  fig.align='center', out.width = "50%"}
+library(car)
+vif(insurance.mlr)
+# No VIF parameters below are greater than 10
+```
+
+
+After running our variance inflation factor analysis we see that the VIF values for all predictor variables are well below the common threshold of 10, indicating a very low level of multicollinearity. This tells us that multicollinearity is not a serious concern in our full model.
+
+## Regression Analysis
+
+### A2.1: Finding Functional Form
+
+```{r fig.align='center',  out.width="50%"}
+
+###Figure 1 Code
+insurance.mlr<-lm(charges~age+sex+bmi+children+smoker+region,data=insurance)
+hist(insurance.mlr$residuals, breaks = 90, xlab = "Insurance Charges Residuals", main =
+       "Full Model Residual Plot")
+```
+
+First, we'll plot the numerical independent variables to examine their relationship with y:
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+plot(x1, y)
+plot(x3, y)
+plot(x4, y)
+```
+
+Seeing as though x1 displays a clear positive linear relationship with the appearance of multiple y intercepts, we'll plot x1 by color according to each categorical variable.
+
+**Plot of Age and Sex against Charges**
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+
+plot(x1, y)
+points(x1[x2=="female"], y[x2=="female"], col = "red")
+points(x1[x2=="male"], y[x2=="male"], col = "blue")
+```
+No discernable interaction pattern
+
+**Plot of Age and Smoker against Charges**
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+# categorical variable smoker and age against charges
+plot(x1, y)
+points(x1[x5=="yes"], y[x5=="yes"], col = "red")
+points(x1[x5=="no"], y[x5=="no"], col = "blue")
+# smokers seem to have a higher y intercept
+```
+We observe a notable interaction between smoker (x5) and age. Specifically, the intercept for smoker = "yes" on age and charges seem to be noticeably higher than for smoker = "no."
+
+**Plot of Age and Region against Charges**
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+#region with x1
+plot(x1, y)
+points(x1[x6=="northeast"], y[x6=="northeast"], col = "blue")
+points(x1[x6=="northwest"], y[x6=="northwest"], col = "red")
+points(x1[x6=="southeast"], y[x6=="southeast"], col = "green")
+points(x1[x6=="southwest"], y[x6=="southwest"], col = "purple")
+#evenly distributed, no pattern
+```
+No discernable interaction pattern
+
+Given how we noticed an interaction pattern between age and smoker against y, we will remove x1 and x5's interaction contribution and examine the relationship with the new y y1.
+
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+lm1<-lm(y~0+z1) 
+y1<-lm1$residuals
+plot(x1,y1)
+hist(y1, breaks = 80)
+```
+Now, the linear relationship between x1 and y1 seems slightly more evenly distributed without the interaction between age and smoker. The interaction between x1 and x5 contributes to a more normal y1, so we'll include z1 in our normal y model. 
+
+The histogram for y1 is more normal as well.
+
+We'll now remove age x1 to examine the relationship between new y2 with the other numerical variables.
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+
+lm2<-lm(y1~0+x1) 
+y2<-y1-lm2$fitted.values
+plot(x1, y2)
+hist(y2, breaks = 80)
+```
+The histogram for y2 is noticeably more normal. There is a somewhat linear pattern present in x1 and y2, so we'll include x1 in the normal y model. Now we will examine the two remaining numerical independent variables.
+
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+plot(x3, y2)
+plot(x4, y2)
+```
+We observe a somewhat positive linear relationship in bmi x3 and y that seems to be influenced by a categorical variable.
+
+**Plot of bmi and sex against y2**
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+
+plot(x3, y2)
+points(x3[x2=="female"], y2[x2=="female"], col = "red")
+points(x3[x2=="male"], y2[x2=="male"], col = "blue")
+
+
+```
+Evenly distributed, no discernable pattern.
+
+
+
+**Plot of bmi and smoker against y2**
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+#interaction between bmi and smoker against y2
+plot(x3, y2)
+points(x3[x5=="yes"], y2[x5=="yes"], col = "red")
+points(x3[x5=="no"], y2[x5=="no"], col = "blue")
+```
+Seems to be different intercepts and slopes for bmi depending on if an individual smokes or not
+
+**Plot of bmi and region against y2**
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+#interaction between bmi and region against y2
+plot(x3, y2)
+points(x3[x6=="northeast"], y2[x6=="northeast"], col = "blue")
+points(x3[x6=="northwest"], y2[x6=="northwest"], col = "red")
+points(x3[x6=="southeast"], y2[x6=="southeast"], col = "green")
+points(x3[x6=="southwest"], y2[x6=="southwest"], col = "purple")
+
+```
+Evenly distributed, no discernable pattern.
+
+
+We observed a potential interaction between bmi x3 and smoker x5. Now, we will remove the interaction contribution to examine the new y3.
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+z2<-smoker * x3
+
+lm3<-lm(y2~0+z2) 
+y3<-lm3$residuals
+hist(y3, breaks = 80)
+```
+The interaction between x3 and x5 contributes to a more normal y5, so we'll include z2 in our normal y model.The y3 plot is still somewhat normal. The code below removes bmi. We will include z2 in out normal y model
+
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+lm4<-lm(y3~0+x3) 
+y4<-y3-lm4$fitted.values
+plot(x3, y4)
+hist(y4, breaks = 80)
+```
+The plot of x3 on y4 displays a somewhat positive linear pattern. Therefore, x3 will be included. Now, we'll examine the relationship between x4 and y4.
+
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+plot(x4, y4)
+```
+This looks evenly distributed.
+
+**Plot of Number of Children and Sex against y4**
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+
+plot(x4, y4)
+points(x4[x2=="female"], y4[x2=="female"], col = "red")
+points(x4[x2=="male"], y4[x2=="male"], col = "blue")
+
+
+```
+No discernable pattern
+
+**Plot of Number of Children and Smoker against y4**
+
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+
+plot(x4, y4)
+points(x4[x5=="yes"], y4[x5=="yes"], col = "red")
+points(x4[x5=="no"], y4[x5=="no"], col = "blue")
+# non-smokers seem to have a higher y intercept
+```
+Smokers seem to have a lower intercept. Below, we'll remove the interaction between x4 and x5.
+
+
+**Plot of Number of Children and Region against y4**
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+#interaction between Number of Children and Region against y4
+plot(x4, y4)
+points(x4[x6=="northeast"], y4[x6=="northeast"], col = "blue")
+points(x4[x6=="northwest"], y4[x6=="northwest"], col = "red")
+points(x4[x6=="southeast"], y4[x6=="southeast"], col = "green")
+points(x4[x6=="southwest"], y4[x6=="southwest"], col = "purple")
+
+```
+No discernable pattern.
+
+
+Removing the interaction between x4 and x5.
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+z3<-smoker * x4
+lm5<-lm(y4~0+z3) 
+y5<-lm5$residuals
+plot(x4, y5)
+hist(y5, breaks = 80)
+```
+The interaction between x4 and x5 seems to contribute to a more normal y5, so we'll include z3 in our normal y model. Below, x4 will be removed so we can examine the final y6.
+
+
+
+
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+lm6<-lm(y5~0+x4) 
+y6<-y5-lm6$fitted.values
+plot(x4, y6)
+hist(y6, breaks = 80)
+```
+There seems to be a slight positive linear relationship between x4 and y5, so x4 will be included. We'll also include z3 in our normal linear model. Most importantly, y6 is still fairly normal. Next, we'll examine residuals when the intercept is removed.
+
+
+
+
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+lm7 <- lm(y6~1)
+y7 <- lm7$residuals
+plot(lm7$fitted.values, lm7$residuals)
+qqnorm(y7)
+qqline(y7)
+hist(y7, breaks = 90)
+shapiro.test(y7)
+```
+7 fails the normality assumption. There is strange behavior on the residuals vs. fitted plot, which indicates potential mistakes. It may also necessitate transformations on y for normality. 
+
+Given these results, we'll keep $x_1$, $x_3$, $x_4$, $z_1$, $z_2$, and $z_3$ in consideration for our final model. 
+
+### A2.2: Model Transformations
+As displayed above, various steps of inclusion/exclusion of x variables contributes to a far more normal model compared to our initial full model. However, normality still doesn't hold. 
+
+Because of this, we'll have to transform our y variable in order to get an approximately normal model. We're choosing a log() transformation on y because our original response plot was right-skewed. 
+
+Additionally, we're choosing to remove the intercept because insurance charges (y) simply should be zero if all other numerical independent x variables are zero as well. 
+
+These two changes are the only way to achieve normality for charges against our x variables.
+
+Following these transformations, we hope to observe normality in our output below.
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+lm8 <-lm(log(y)~0+ x1 + x3 + x4 + z1 + z2 + z3)
+y8 <- lm8$residuals
+qqnorm(lm8$residuals)
+qqline(lm8$residuals)
+plot(lm8$fitted.values, lm8$residuals)
+summary(lm8)
+
+```
+```{r}
+shapiro.test(lm8$residuals)
+dwt(lm8)
+```
+
+Thanks to log(y) and the removal of intercepts, linear model 8 is normal. The points look evenly distributed across the residual axis, therefore indicating constant variance. The residuals v. fitted plot implies independence and constant variance, but we'll preform model diagnostics to see if we can improve these assumptions. Lastly, the Durbin Watson p-value .542 indicates that autocorrelation is not present, therefore independence is satisfied.
+
+Additionally, given the strange patterns we observed in bmi against charges in our functional form section, we're going to need to observe if transformations on x3 improve linearity and constant variance assumptions
+
+First, we'll consider the square root of x3 as well as its interactions with smoker
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+
+z2_1 = sqrt(x3) * sqrt(smoker)
+lm8_1 <-lm(log(y)~0+ x1 + sqrt(x3) + x4 + z1 + z2_1 + z3)
+y8_1 <- lm8_1$residuals
+qqnorm(lm8_1$residuals)
+qqline(lm8_1$residuals)
+plot(lm8_1$fitted.values, lm8_1$residuals)
+summary(lm8_1)
+
+```
+
+```{r}
+shapiro.test(lm8_1$residuals)
+dwt(lm8_1)
+```
+
+There is a slight improvement to the spread of our residuals, but normality is violated so we cannot keep this transformation.
+
+
+Next, we'll consider squaring x3 and its interaction with smoker.
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+z2_2 = x3^2 * (smoker)^2
+lm8_2 <-lm(log(y)~0+ x1 + (x3)^2 + x4 + z1 + z2_2 + z3)
+y8_2 <- lm8_2$residuals
+qqnorm(lm8_2$residuals)
+qqline(lm8_2$residuals)
+plot(lm8_2$fitted.values, lm8_2$residuals)
+summary(lm8_2)
+
+```
+
+```{r}
+shapiro.test(lm8_2$residuals)
+dwt(lm8_2)
+```
+
+Again, there's slight improvement to the residuals v. fitted plot but normality is violated so we can't keep this transformation.
+
+Next, we'll consider cubing x3 and its interactions
+
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+z2_3 = x3^3 * (smoker)^3
+lm8_3 <-lm(log(y)~0+ x1 + (x3)^3 + x4 + z1 + z2_3 + z3)
+y8_3 <- lm8_3$residuals
+qqnorm(lm8_3$residuals)
+qqline(lm8_3$residuals)
+plot(lm8_3$fitted.values, lm8_3$residuals)
+summary(lm8_3)
+
+```
+```{r}
+shapiro.test(lm8_3$residuals)
+dwt(lm8_3)
+```
+There aren't any noticeable improvements to our residuals v. fitted plot and normality is violated again.
+
+Next, we'll try a cosine transformation
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+z2_4 = cos(x3) * cos(smoker)
+lm8_4 <-lm(log(y)~0+ x1 + cos(x3) + x4 + z1 + z2_4 + z3)
+y8_4 <- lm8_4$residuals
+qqnorm(lm8_4$residuals)
+qqline(lm8_4$residuals)
+plot(lm8_4$fitted.values, lm8_4$residuals)
+summary(lm8_4)
+
+```
+
+
+```{r}
+shapiro.test(lm8_4$residuals)
+dwt(lm8_4)
+```
+
+Cosine worsens the residuals v. fitted plot and violates normality, therefore we cannot keep this transformation.
+
+For the sake of brevity, we've omitted various other transformations that did not improve linearity and constant variance. The patterns that are visible in the residuals v. fitted plot of model 8 will be discussed in our limitations section.
+
+Now we'll move on with model 8 into our model diagnostics.
+
+### A2.3: Considering Various Models
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+#removing x1
+lm9 <-lm(log(y)~ 0 + x3 + x4 + z1 + z2 + z3)
+qqnorm(lm9$residuals)
+qqline(lm9$residuals)
+plot(lm9$fitted.values, lm9$residuals)
+
+summary(lm9)
+dwt(lm9)
+```
+
+```{r}
+shapiro.test(lm9$residuals)
+```
+
+
+P-value is much lower, normality no longer holds when x1 is removed. This shows us we definitely need to keep x1. We'll exclude model 9.
+
+
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+#removing x3
+lm10 <-lm(log(y)~ 0 + x1 + x4 + z1 + z2 + z3)
+qqnorm(lm10$residuals)
+qqline(lm10$residuals)
+plot(lm10$fitted.values, lm10$residuals)
+shapiro.test(lm10$residuals)
+summary(lm10)
+```
+
+Normality no longer holds when x3 is removed. Just like for x1, we must keep x3 for normality to hold. We'll exclude model 10.
+
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+#removing x4
+lm11 <-lm(log(y)~ 0 + x1 + x3 + z1 + z2 + z3)
+qqnorm(lm11$residuals)
+qqline(lm11$residuals)
+plot(lm11$fitted.values, lm11$residuals)
+shapiro.test(lm11$residuals)
+summary(lm11)
+dwt(lm11)
+```
+
+Normality still holds. Excluding x4 ever so slightly increases the spread of points on residuals v. fitted. However, given how the R^2 value is slightly worse than the R^2 for model 8, we won't exclude x4. Linearity and constant variance still hold according to the residuals v. fitted plot. The Durbin-Watson p value .356 > .05, so we'll conclude that the residuals are not correlated, therefore independent from each other. The assumptions still hold, but we prefer a model with a higher R^2. For now, we'll keep x4 in the model and consider other models to see if R^2 improves.
+
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+#removing z1
+lm12 <-lm(log(y)~ 0 + x1 + x3 + x4 + z2 + z3)
+qqnorm(lm12$residuals)
+qqline(lm12$residuals)
+plot(lm12$fitted.values, lm12$residuals)
+
+
+shapiro.test(lm12$residuals)
+summary(lm12)
+dwt(lm12)
+```
+
+Excluding z1 has no noticeable effect on residuals vs. fitted, but the R^2 is slightly reduced compared to model 8. Linearity and constant variance still hold according to the residuals v. fitted plot. The Durbin-Watson p value .498 > .05, so we'll conclude that residuals are not correlated, therefore independent from each other. Given R^2 is slightly lessened when z1 is removed, we'll proceed with keeping z1. 
+
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+#removing z2
+lm13 <-lm(log(y)~ 0 + x1 + x3 + x4 + z1+ z3)
+y13 = lm13$residuals
+qqnorm(lm13$residuals)
+qqline(lm13$residuals)
+plot(lm13$fitted.values, lm13$residuals)
+
+shapiro.test(lm13$residuals)
+summary(lm13)
+
+dwt(lm13)
+```
+Excluding z2 has no effect on residuals v. fitted or normality, but R^2 is further reduced compared to model 8. Linearity and constant variance still hold according to the residuals v. fitted plot. The Durbin-Watson p value .488 > .05, so we'll conclude that the residuals are not correlated, therefore independent from each other. Given R^2 is slightly lessened when z2 is removed, we'll proceed with keeping z2. 
+
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+#removing z3
+lm14 <-lm(log(y)~ 0 + x1 + x3 + x4 + z1 + z2)
+
+y14 <- lm14$residuals
+qqnorm(lm14$residuals)
+qqline(lm14$residuals)
+plot(lm14$fitted.values, lm14$residuals)
+shapiro.test(lm14$residuals)
+summary(lm14)
+dwt(lm14)
+```
+
+```{r}
+shapiro.test(lm14$residuals)
+```
+
+Removing z3 does not make any changes to the residuals vs. fitted plot, but the R^2 value is the exact same as model 8. Additionally, the adjusted R^2 value is higher than for model 8. Since the exclusion of z3 has a completely neutral effect on the coefficient of determination while normality holds, we can safely exclude it. Without the interaction between number of children (x4) and smoker (x5), the model still fits the data equally as well. Therefore, since z3 does not contribute positively to R^2, we can safely exclude it.
+
+Linearity and constant variance still hold according to the residuals v. fitted plot. The Durbin-Watson p value .572 > .05, so we'll conclude that the residuals are not correlated, therefore independent from each other. 
+
+**Considered But Excluded Models**
+
+Given the results of our testing above, we're heavily considering models 8 and 14, and we're excluding models 9 through 13.
+
+Also, none of these models demonstrate significant improvements over model 8. To more thoroughly determine our final model, we'll build a stepwise regression model.
+
+### A2.4: Stepwise Regression
+```{r}
+#null model with no predictors
+stepwise_null_model = lm(log(y) ~ 1)
+
+#full model with all relevant predictors
+stepwise_full_model <- lm(log(y)~0+ x1 + x3 + x4 + z1 + z2 + z3)
+
+```
+
+```{r}
+stepwise_model1 <- step(stepwise_null_model, scope = list(lower = stepwise_null_model, upper =
+stepwise_full_model), direction = "both", test="F")
+```
+
+```{r}
+#forward selection using null model 
+summary(stepwise_model1)
+```
+
+When intercepts are included and variables are added one-by-one, forward selection decides to keep all variables. There may be complications to consider since forward selection includes intercepts, so we'll have to closely examine the results of backward selection.
+
+The last variable to be included was z3, so it may be a likely candidate for removal once we conduct backwards selection using the full model.
+```{r}
+#backwards selection using full model
+stepwise_model2 <- step(stepwise_full_model, scope = list(lower = stepwise_null_model, upper =
+stepwise_full_model), direction = "both", test = "F")
+```
+
+```{r}
+#backwards selection using full model
+summary(stepwise_model2)
+```
+
+In backwards selection using the full model, z3 was removed. Based on forward selection, we've determined that z3 doesn't contribute significantly to the improvement of R^2. Because of this, we've decided to remove z3 from our final model.
+
+```{r}
+summary(stepwise_model2)
+summary(lm14)
+```
+
+Notice how stepwise_model_2 is identical to model 14. This further supports our decision to move forward using model 14.
+
+### A2.5: Final Model Diagnostics
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+shapiro.test(lm14$residuals)
+plot(stepwise_model2$fitted.values, stepwise_model2$residuals)
+```
+
+The Shapiro-Wilk normality test's p-value of .259 indicates that the normality assumption is satisfied. Upon examining the residuals v. fitted plot, this model approximately satisfies linearity and constant variance with complications worth considering. We'll use model 14 as our final model but we'll discuss these complications in our limitations section.
+
+Additionally, this model satisfies the normality and independence assumptions according to the tests we ran before stepwise regression. All necessary assumptions are satisfied, and the R^2 is very high, so we've decided to select model 14 as our final model.
+
+### A2.6: Final Model Output
+```{r}
+summary(lm14)
+```
+
+Our final multiple linear regression model is of the form:
+
+$log(y) = 0 + \beta_1 x_1 +   \beta_2 x_3 + \beta_3 x_4 + \beta_4 (x_1)(x_5) + \beta_5 (x_3)(x_5)+ \epsilon$
+
+This multiple linear regression model aims to analyze the impact of several predictor variables on health insurance charges. The model uses the logarithm of the response variable (y), since the data for insurance charges was not satisfying the normality assumption. The model includes the predictor variables x1, x3, x4, z1, and z2. The coefficients represent the estimated change in insurance charges for a one-unit change in each predictor.
+
+After fitting our model:
+
+\[log(\hat{y})= 0+0.075854x_1+0.0173248x_3+0.248180x_4-0.020711x_1x_5+0.075454x_3x_5+ \epsilon\]
+
+The interaction between age and smoker has a slightly negative coefficient, but this isn't entirely unexpected. Younger smokers may be attributed with lower insurance charges, and we initially observed there were many more younger patients included in the data compared to older patients. Because of this, none of our Beta parameters display any opposite signs from what's expected, so this indicates multicollinearity isn't present in our final model. We'll also run a VIF test in A2.6.
+
+```{r}
+summary(lm14)$coefficients
+```
+All coefficients are statistically significant with p-values < 0.05, indicating strong evidence that these variables have an impact on insurance charges.
+   
+
+R-squared:
+```{r}
+summary(lm14)$r.squared
+summary(lm14)$adj.r.squared
+```
+The multiple R-squared value is 0.9779 and the adjusted R-squared is 0.9778553, indicating that the model explains approximately 97.8% of the variance in insurance charges.
+
+Residuals:
+```{r, fig.show = "hold", fig.align='center', out.width="35%"}
+plot(lm14$fitted.values, lm14$residuals)
+```
+Residuals (differences between observed and predicted values) exhibit a symmetric distribution with no clear patterns in the residuals vs. fitted values plot.
+
+Overall Fit:
+```{r}
+summary(lm14)$fstatistic
+pf(summary(lm14)$fstatistic[1], summary(lm14)$fstatistic[2], summary(lm14)$fstatistic[3], lower.tail = FALSE)
+```
+The F-statistic is significant (p-value < 0.001), suggesting that the model as a whole is a good fit for the data.
+
+Our final model suggests that age, BMI, number of children, and the interactions between smoker and age as well as BMI are strong predictors of health insurance charges. The high R-squared value indicates an excellent fit, and the coefficients provide insights into the direction of the relationships between predictors and charges.
+
+### A2.7: Multicollinearity Analysis on Final Model: VIF
+```{r}
+vif(lm14)
+```
+None of our variables display values greater than 10, so there are no indicates for multicollinearity present in our final model. 
+
+
+
+## Future Work
+
+We believe future work is required for a more thorough analysis on the factors that impact insurance charges
+
+Considering additional variables variables can help in creating a more accurate model. Additional important inferences could have been made if other important factors such as history of chronic illness or the number of hospital visits were present in the data.
+
+# Works Cited
+
+Bui AL, Dieleman JL, Hamavid H, Birger M, Chapin A, Duber HC, Horst C, Reynolds A, Squires E, Chung PJ, Murray CJ. Spending on Children's Personal Health Care in the United States, 1996-2013. JAMA Pediatr. 2017 Feb 1;171(2):181-189. doi: 10.1001/jamapediatrics.2016.4086. PMID: 28027344; PMCID: PMC5546095. 
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5546095/
+
+CDC, Centers for Disease Control and Prevention. Assessing Your Weight, 2022, Jun 3. https://www.cdc.gov/healthyweight/assessing/index.html#:~:text=If%20your%20BMI%20is%20less,falls%20within%20the%20obese%20range
+
+National Academies of Sciences, Engineering, and Medicine; Health and Medicine Division; Board on Health Care Services; Committee on Health Care Utilization and Adults with Disabilities. Health-Care Utilization as a Proxy in Disability Determination. Washington (DC): National Academies Press (US); 2018 Mar 1. 2, Factors That Affect Health-Care Utilization. Available from: https://www.ncbi.nlm.nih.gov/books/NBK500097/
+
+Lantz, Brett. Machine Learning with R - Third Edition. Packt Publishing, 2019. 
+
+Ward ZJ, Bleich SN, Long MW, Gortmaker SL. Association of body mass index with health care expenditures in the United States by age and sex. PLoS One. 2021 Mar 24;16(3)e0247307 doi: 10.1371/journal.pone.0247307.PMID: 33760880; PMCID: PMC7990296
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7990296/
+
+Wilcoxon, Nicole. Older Adults Sacrificing Basic Needs Due to Healthcare Costs, June 15 2022
+https://news.gallup.com/poll/393494/older-adults-sacrificing-basic-needs-due-healthcare-costs.aspx
+
+Xu X, Bishop EE, Kennedy SM, Simpson SA, Pechacek TF. Annual healthcare spending attributable to cigarette smoking: an update. Am J Prev Med. 2015 Mar;48(3):326-33. doi: 10.1016/j.amepre.2014.10.012. Epub 2014 Dec 10. PMID: 25498551; PMCID: PMC4603661.
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4603661/
