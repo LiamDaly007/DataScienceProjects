@@ -15,13 +15,13 @@ The dataset can be found here: https://www.kaggle.com/datasets/koki25ando/hostel
 
 
 ## Usage
-To use replicate the analysis on your own computer, please follow the following steps:
+To replicate the analysis on your own computer, please follow the following steps:
 
 1. Install all project files to your computer.
 2. Right click on "Hostel 2.csv" and copy the path to this file
 3. Open `HostelAnalysis.Rmd` using a fully updated version of RStudio and scroll to lines 55-56.
 4. Highlight and delete everything contained inside the quotation marks in the "read.csv" statement.
-5. Paste your path to "Hostel 2.csv".
+5. Paste your path to "Hostel 2.csv" in place of the code that was highlighted and deleted in step 4.
 6. Knit the entire rmd file.
 
 
